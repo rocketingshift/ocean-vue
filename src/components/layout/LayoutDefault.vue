@@ -1,5 +1,6 @@
 <template>
   <div class="layout-default">
+    <WebGLCanvas />
     <Header :isMuted="isMuted" @toggleAudio="toggleMute" />
     <Preloader />
     <Introduction />
@@ -11,9 +12,9 @@
 import Header       from '@/components/common/Header.vue'
 import Preloader    from '@/components/sections/Preloader.vue'
 import Introduction from '@/components/sections/Introduction.vue'
+import WebGLCanvas  from '@/components/webgl/WebGLCanvas.vue'
 import { useAudio } from '@/composables/useAudio'
 
-// useAudio dùng module-level singleton _audio — share được giữa các components
 const { isMuted, toggleMute } = useAudio()
 </script>
 
