@@ -4,6 +4,7 @@
       v-if="!isDone"
       class="preloader"
       ref="preloaderRef"
+      :class="{ '--fading': isFading }"
     >
       <div class="wrapper" ref="wrapperRef">
 
@@ -45,61 +46,87 @@ import { useAppStore }    from '@/stores/useAppStore'
 const webglStore = useWebGLStore()
 const appStore   = useAppStore()
 
-const isDone        = ref(false)
-const preloaderRef  = ref(null)
-const wrapperRef    = ref(null)
-const outerRef      = ref(null)
-const innerRef      = ref(null)
-const dotRef        = ref(null)
+const isDone         = ref(false)
+const isFading       = ref(false)   // CSS class fallback nếu GSAP lỗi
+const preloaderRef   = ref(null)
+const wrapperRef     = ref(null)
+const outerRef       = ref(null)
+const innerRef       = ref(null)
+const dotRef         = ref(null)
 const loadingTextRef = ref(null)
 
 const loadPercent = computed(() => webglStore.loadPercent)
 
+// ── Entry animations ──────────────────────────────────────────────────────────
 onMounted(() => {
-  // Fade in wrapper
-  gsap.to(wrapperRef.value, { opacity: 1, duration: 0.8, delay: 0.3 })
-
-  // Spin outer ring
-  gsap.to(outerRef.value, {
-    rotation: 360,
-    duration: 8,
-    ease: 'none',
-    repeat: -1,
-  })
-
-  // Inner 3D wobble
-  gsap.to(innerRef.value, {
-    rotationX: 20,
-    rotationY: 15,
-    duration: 2,
-    ease: 'sine.inOut',
-    yoyo: true,
-    repeat: -1,
-  })
-
-  // Show dot
+  if (wrapperRef.value) {
+    gsap.to(wrapperRef.value, { opacity: 1, duration: 0.8, delay: 0.3 })
+  }
+  if (outerRef.value) {
+    gsap.to(outerRef.value, {
+      rotation: 360, duration: 8, ease: 'none', repeat: -1,
+    })
+  }
+  if (innerRef.value) {
+    gsap.to(innerRef.value, {
+      rotationX: 20, rotationY: 15, duration: 2,
+      ease: 'sine.inOut', yoyo: true, repeat: -1,
+    })
+  }
   if (dotRef.value) {
     gsap.set(dotRef.value, { visibility: 'visible' })
     gsap.to(dotRef.value, {
-      rotation: 360,
-      duration: 3,
-      ease: 'none',
-      repeat: -1,
+      rotation: 360, duration: 3, ease: 'none', repeat: -1,
       transformOrigin: '50% 155px',
     })
   }
+
+  // ✅ FALLBACK CỨNG: sau 12s buộc dismiss dù WebGL chưa ready
+  setTimeout(() => {
+    if (!isDone.value) {
+      console.warn('[Preloader] ⏱ Hard timeout 12s — force dismiss')
+      _dismiss()
+    }
+  }, 12000)
 })
 
-// Watch load completion
+// ── Watch WebGL ready → dismiss ───────────────────────────────────────────────
+// immediate:true để bắt trường hợp isReady đã true trước khi watch setup
 watch(() => webglStore.isReady, (ready) => {
   if (!ready) return
-  gsap.to(preloaderRef.value, {
-    opacity: 0,
-    duration: 0.8,
-    delay: 0.3,
-    onComplete: () => { isDone.value = true },
-  })
-})
+  _dismiss()
+}, { immediate: true })
+
+// ── Dismiss logic — 3 lớp fallback ───────────────────────────────────────────
+function _dismiss() {
+  if (isDone.value) return  // guard: chỉ chạy 1 lần
+
+  if (preloaderRef.value) {
+    // Lớp 1: GSAP animation
+    try {
+      gsap.to(preloaderRef.value, {
+        opacity: 0,
+        duration: 0.8,
+        delay: 0.3,
+        onComplete:  () => { isDone.value = true },
+        onInterrupt: () => { isDone.value = true },
+      })
+    } catch (e) {
+      // Lớp 2: CSS class transition
+      console.warn('[Preloader] GSAP fail → CSS fallback:', e?.message)
+      _cssFallback()
+    }
+  } else {
+    // Lớp 3: instant dismiss (ref null vì Teleport edge case)
+    console.warn('[Preloader] preloaderRef null → instant dismiss')
+    isDone.value = true
+  }
+}
+
+function _cssFallback() {
+  isFading.value = true
+  setTimeout(() => { isDone.value = true }, 1000)
+}
 </script>
 
 <style scoped>
@@ -114,6 +141,14 @@ watch(() => webglStore.isReady, (ready) => {
   position: fixed;
   width: 100%;
   z-index: var(--z-preloader);
+  /* CSS fallback transition */
+  transition: opacity 0.8s ease;
+}
+
+/* CSS class fallback khi GSAP fail */
+.preloader.--fading {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .wrapper {
