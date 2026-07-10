@@ -1,0 +1,55 @@
+:root {
+  /* ── Colors ─────────────────────────────── */
+  --color-bg:       #000d15;
+  --color-primary:  #90e0ef;
+  --color-white:    #ffffff;
+  --color-gray:     gray;
+  --color-glow:     rgba(255, 255, 255, 0.5);
+
+  /* ── Typography ─────────────────────────── */
+  /* Thay bằng font thực tế của dự án */
+  --font-primary: 'Inter', 'Helvetica Neue', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+
+  /* ── Spacing ─────────────────────────────── */
+  --spacing:     2.3rem;
+  --spacing-sm:  1.3rem;
+  --spacing-md:  1.6rem;
+  --spacing-lg:  3.4rem;
+
+  /* ── Layout ──────────────────────────────── */
+  --header-height: 6.4rem;
+
+  /* ── Scroll ──────────────────────────────── */
+  --total-scroll-vh: 2500;
+
+  /* ── Viewport units (JS inject) ─────────── */
+  --svh: 1svh;
+  --vh:  1vh;
+
+  /* ── Easing ──────────────────────────────── */
+  --ease-standard:  cubic-bezier(0.445, 0.05, 0.55, 0.95);
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-expo:   cubic-bezier(0.7, 0, 0.84, 0);
+
+  /* ── Transitions ─────────────────────────── */
+  --transition-slow:   1.4s var(--ease-standard);
+  --transition-normal: 0.6s var(--ease-out-expo);
+  --transition-fast:   0.3s var(--ease-out-expo);
+
+  /* ── Z-index layers ──────────────────────── */
+  --z-canvas:   0;
+  --z-content:  1;
+  --z-overlay:  5;
+  --z-header:   10;
+  --z-preloader: 20;
+  --z-debug:    10000;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --header-height: 8.6rem;
+    --spacing:    1.6rem;
+    --spacing-sm: 1.6rem;
+  }
+}
