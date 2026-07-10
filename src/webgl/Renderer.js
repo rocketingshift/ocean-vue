@@ -1,26 +1,65 @@
 import * as THREE from 'three'
 
 export class OceanRenderer {
-  constructor(canvas) {
-    this.instance = new THREE.WebGLRenderer({
-      canvas,
-      antialias:  true,
-      alpha:      false,
+  constructor() {
+    // Tạo renderer với canvas nội bộ trước
+    this._renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
       powerPreference: 'high-performance',
     })
 
-    this.instance.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    this.instance.setSize(window.innerWidth, window.innerHeight)
-    this.instance.setClearColor(0x000d15, 1)
-    this.instance.shadowMap.enabled = true
-    this.instance.shadowMap.type    = THREE.PCFSoftShadowMap
-    this.instance.toneMapping       = THREE.ACESFilmicToneMapping
-    this.instance.toneMappingExposure = 1.2
-    this.instance.outputColorSpace   = THREE.SRGBColorSpace
+    this._applySettings()
   }
 
-  resize(w, h) {
-    this.instance.setSize(w, h)
-    this.instance.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  _applySettings() {
+    this._renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    this._renderer.setSize(window.innerWidth, window.innerHeight)
+    this._renderer.toneMapping        = THREE.ACESFilmicToneMapping
+    this._renderer.toneMappingExposure = 1.2
+    this._renderer.outputColorSpace   = THREE.SRGBColorSpace
+  }
+
+  get domElement() {
+    return this._renderer.domElement
+  }
+
+  /**
+   * Bind renderer tới <canvas> của Vue component.
+   * Nếu canvas được cung cấp, dispose renderer cũ và tạo mới với canvas đó.
+   * @param {HTMLCanvasElement} canvas
+   */
+  mount(canvas) {
+    if (!canvas) return
+
+    // Dispose renderer cũ
+    try { this._renderer.dispose() } catch (_) {}
+
+    this._renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance',
+    })
+
+    this._applySettings()
+    console.log('[Renderer] ✅ mounted to canvas')
+  }
+
+  render(scene, camera) {
+    this._renderer.render(scene, camera)
+  }
+
+  resize() {
+    this._renderer.setSize(window.innerWidth, window.innerHeight)
+    this._renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  }
+
+  destroy() {
+    try {
+      this._renderer.dispose()
+      this._renderer.forceContextLoss()
+    } catch (_) {}
+    console.log('[Renderer] destroyed')
   }
 }
