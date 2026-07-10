@@ -1,104 +1,94 @@
 /**
- * chapters.js
- * Dữ liệu chapters — reconstruct từ CSS component names + earth_markers.json
- * scrollStart / scrollEnd = % của tổng scroll (0 → 1)
+ * OceanX 2025 Year in Review — Chapter & Earth Marker Data
+ *
+ * pos    : [x, y, z]    — vị trí trên mặt cầu đơn vị
+ * orient : [x, y, z, w] — quaternion xoay trái đất (THREE.Quaternion order)
  */
 
-export const TOTAL_SCROLL_VH = 2500
+export const EARTH_MARKERS = [
+  // 0 — Atlantic Overview (0°N, 30°W)
+  { id: 0, pos: [-0.500,  0.000,  0.866], orient: [ 0.000,  0.259,  0.000,  0.966] },
+  // 1 — Arctic (80°N, 20°E)
+  { id: 1, pos: [ 0.060,  0.985,  0.163], orient: [-0.633, -0.133, -0.112,  0.754] },
+  // 2 — Mediterranean (36°N, 18°E)
+  { id: 2, pos: [ 0.250,  0.588,  0.769], orient: [-0.305, -0.149, -0.048,  0.939] },
+  // 3 — Indian Ocean (15°S, 70°E)
+  { id: 3, pos: [ 0.908, -0.259,  0.330], orient: [ 0.107, -0.569,  0.075,  0.812] },
+  // 4 — Pacific (0°N, 150°W)
+  { id: 4, pos: [-0.500,  0.000, -0.866], orient: [ 0.000,  0.966,  0.000,  0.259] },
+  // 5 — Antarctic (70°S, 0°E)
+  { id: 5, pos: [ 0.000, -0.940,  0.342], orient: [ 0.574,  0.000,  0.000,  0.819] },
+  // 6 — Red Sea (20°N, 38°E)
+  { id: 6, pos: [ 0.579,  0.342,  0.741], orient: [-0.164, -0.321, -0.057,  0.931] },
+]
 
 export const CHAPTERS = [
   {
-    id:          0,
-    slug:        'preloader',
-    label:       null,
-    scrollStart: 0,
-    scrollEnd:   0.02,
-    markerId:    null,
+    id:       0,
+    title:    'OceanX 2025',
+    subtitle: 'Year in Review',
+    color:    '#4fc3f7',
+    progress: { start: 0.00, end: 0.14 },
+    marker:   EARTH_MARKERS[0],
   },
   {
-    id:          1,
-    slug:        'introduction',
-    label:       'Introduction',
-    scrollStart: 0.02,
-    scrollEnd:   0.10,
-    markerId:    null,
+    id:       1,
+    title:    'Arctic Frontier',
+    subtitle: 'Mapping the Melting North',
+    color:    '#b3e5fc',
+    progress: { start: 0.14, end: 0.28 },
+    marker:   EARTH_MARKERS[1],
   },
   {
-    id:          2,
-    slug:        'chapter-01',
-    label:       'Chapter 01',
-    scrollStart: 0.10,
-    scrollEnd:   0.25,
-    markerId:    0,   // earth_markers.json id 0
+    id:       2,
+    title:    'Mediterranean Deep',
+    subtitle: 'Ancient Seas, New Discoveries',
+    color:    '#0288d1',
+    progress: { start: 0.28, end: 0.42 },
+    marker:   EARTH_MARKERS[2],
   },
   {
-    id:          3,
-    slug:        'chapter-02',
-    label:       'Chapter 02',
-    scrollStart: 0.25,
-    scrollEnd:   0.40,
-    markerId:    1,
+    id:       3,
+    title:    'Indian Ocean Expedition',
+    subtitle: 'Biodiversity Below the Surface',
+    color:    '#006064',
+    progress: { start: 0.42, end: 0.56 },
+    marker:   EARTH_MARKERS[3],
   },
   {
-    id:          4,
-    slug:        'chapter-03',
-    label:       'Chapter 03',
-    scrollStart: 0.40,
-    scrollEnd:   0.55,
-    markerId:    2,
+    id:       4,
+    title:    'Pacific Odyssey',
+    subtitle: "Crossing the World's Largest Ocean",
+    color:    '#00838f',
+    progress: { start: 0.56, end: 0.70 },
+    marker:   EARTH_MARKERS[4],
   },
   {
-    id:          5,
-    slug:        'chapter-04',
-    label:       'Chapter 04',
-    scrollStart: 0.55,
-    scrollEnd:   0.68,
-    markerId:    3,
+    id:       5,
+    title:    'Antarctic Survey',
+    subtitle: 'Ice, Life and Climate',
+    color:    '#80deea',
+    progress: { start: 0.70, end: 0.84 },
+    marker:   EARTH_MARKERS[5],
   },
   {
-    id:          6,
-    slug:        'chapter-05',
-    label:       'Chapter 05',
-    scrollStart: 0.68,
-    scrollEnd:   0.80,
-    markerId:    4,
-  },
-  {
-    id:          7,
-    slug:        'chapter-06',
-    label:       'Chapter 06',
-    scrollStart: 0.80,
-    scrollEnd:   0.92,
-    markerId:    5,
-  },
-  {
-    id:          8,
-    slug:        'outro',
-    label:       null,
-    scrollStart: 0.92,
-    scrollEnd:   1.0,
-    markerId:    6,
+    id:       6,
+    title:    'Red Sea & Gulf',
+    subtitle: 'Coral Corridors',
+    color:    '#e91e63',
+    progress: { start: 0.84, end: 1.00 },
+    marker:   EARTH_MARKERS[6],
   },
 ]
 
 /**
- * Earth markers raw data từ earth_markers.json
- * pos = vị trí 3D trên sphere (unit vector)
- * orient = quaternion [x, y, z, w]
- */
-export const EARTH_MARKERS = [
-  { id: 0, pos: [-0.964,  0.207,  0.027], orient: [-0.068, -0.682, -0.064,  0.725] },
-  { id: 1, pos: [-0.568, -0.469,  0.657], orient: [ 0.246, -0.325,  0.088,  0.909] },
-  { id: 2, pos: [-0.752,  0.633,  0.078], orient: [-0.259, -0.611, -0.222,  0.714] },
-  { id: 3, pos: [-0.203, -0.346,  0.901], orient: [ 0.162, -0.095,  0.016,  0.982] },
-  { id: 4, pos: [ 0.303,  0.007,  0.939], orient: [-0.019,  0.167,  0.003,  0.986] },
-  { id: 5, pos: [ 0.604, -0.144,  0.767], orient: [ 0.054,  0.338, -0.019,  0.939] },
-  { id: 6, pos: [-0.676, -0.374,  0.613], orient: [ 0.169, -0.382,  0.071,  0.906] },
-]
-
-/**
- * Tìm chapter theo scroll progress (0→1)
+ * Trả về chapter ứng với scrollProgress [0, 1].
  */
 export function getChapterByProgress(progress) {
-  return CHAPTERS.findLast(ch => progress >= ch.scrollStart) ?? CHAPTERS[0]
+  for (const ch of CHAPTERS) {
+    if (progress >= ch.progress.start && progress < ch.progress.end) {
+      return ch
+    }
+  }
+  return CHAPTERS[CHAPTERS.length - 1]
 }
