@@ -1,63 +1,117 @@
-// src/composables/useWebGL.js
-import { onMounted, onBeforeUnmount } from 'vue'
-import { OceanScene }     from '@/webgl/Scene.js'
-import { useScrollStore } from '@/stores/useScrollStore.js'
+import { ref, onUnmounted } from 'vue'
+import { useWebGLStore } from '@/stores/useWebGLStore'
+import { useScrollStore } from '@/stores/useScrollStore'
 
-// Module-level singletons (survive component re-renders)
-let _scene = null
-let _rafId = null
+// ── Singleton state (persist across HMR) ─────────────────────────────────────
+let _scene         = null
+let _rafId         = null
+let _isInitialized = false
 
-export function useWebGL (canvasRef) {
+export function useWebGL(canvas) {
+  const webglStore  = useWebGLStore()
   const scrollStore = useScrollStore()
+  const isReady     = ref(false)
 
-  // ── RAF Loop ───────────────────────────────────────────────
-  function loop () {
-    // scrollStore.scrollProgress is a Pinia getter → plain number 0→1
-    const progress = scrollStore.scrollProgress ?? 0
+  // ── Init ────────────────────────────────────────────────────────────────────
 
-    if (_scene) {
-      try {
-        _scene.update(progress)
-      } catch (err) {
-        // Log once, don't let errors stop the loop
-        console.warn('[WebGL loop]', err.message)
-      }
-    }
-
-    _rafId = requestAnimationFrame(loop)
-  }
-
-  function onResize () {
-    if (_scene) _scene.resize()
-  }
-
-  // ── Lifecycle ──────────────────────────────────────────────
-  onMounted(() => {
-    if (!canvasRef.value) {
-      console.error('[useWebGL] canvas ref is null')
+  async function init() {
+    if (_isInitialized) {
+      console.log('[useWebGL] already initialized, skip')
       return
     }
+    _isInitialized = true
+    console.log('[useWebGL] initializing...')
 
-    // Singleton: reuse if already created (hot reload / navigation)
-    _scene = OceanScene.getInstance(canvasRef.value)
+    try {
+      // Dynamic import để tránh SSR issues
+      const { OceanScene } = await import('@/webgl/Scene.js')
+      _scene = new OceanScene()
+      _scene.mount(canvas)
 
-    window.addEventListener('resize', onResize, { passive: true })
+      // Bắt đầu render loop ngay (trước khi models load xong)
+      _startLoop()
 
-    // Start RAF (cancel any previous loop first)
-    if (_rafId) cancelAnimationFrame(_rafId)
-    _rafId = requestAnimationFrame(loop)
-  })
+      // Poll isReady từ Scene
+      _pollReady()
 
-  onBeforeUnmount(() => {
-    window.removeEventListener('resize', onResize)
-    // Cancel RAF but keep _scene alive (singleton)
+      // Fallback: force ready sau 5s dù models chưa load
+      setTimeout(() => {
+        if (!isReady.value) {
+          console.warn('[useWebGL] ⚠️ fallback: forcing isReady after 5s')
+          _setReady()
+        }
+      }, 5000)
+
+    } catch (err) {
+      console.error('[useWebGL] ❌ init error:', err)
+      _setReady() // Đừng để UI treo nếu WebGL lỗi
+    }
+  }
+
+  // ── Readiness ────────────────────────────────────────────────────────────────
+
+  function _pollReady() {
+    const check = () => {
+      if (!_scene) return
+      if (_scene.isReady && !isReady.value) {
+        _setReady()
+        return
+      }
+      if (!isReady.value) {
+        requestAnimationFrame(check)
+      }
+    }
+    requestAnimationFrame(check)
+  }
+
+  function _setReady() {
+    isReady.value = true
+    webglStore.setReady(true)
+    console.log('[useWebGL] ✅ isReady = true')
+  }
+
+  // ── RAF Loop ─────────────────────────────────────────────────────────────────
+
+  function _startLoop() {
+    if (_rafId) return // đã chạy rồi
+
+    const tick = () => {
+      if (_scene) {
+        try {
+          // scrollProgress từ store — nếu chưa có thì dùng 0
+          const progress = scrollStore.scrollProgress ?? 0
+          _scene.update(progress)
+        } catch (err) {
+          // Log warning nhưng KHÔNG dừng loop
+          console.warn('[useWebGL] tick error (loop continues):', err.message)
+        }
+      }
+      _rafId = requestAnimationFrame(tick)
+    }
+
+    _rafId = requestAnimationFrame(tick)
+    console.log('[useWebGL] RAF loop started')
+  }
+
+  function stop() {
     if (_rafId) {
       cancelAnimationFrame(_rafId)
       _rafId = null
+      console.log('[useWebGL] RAF loop stopped')
     }
+  }
+
+  // ── Cleanup ──────────────────────────────────────────────────────────────────
+
+  onUnmounted(() => {
+    stop()
+    if (_scene) {
+      _scene.destroy()
+      _scene = null
+    }
+    _isInitialized = false
+    console.log('[useWebGL] cleanup done')
   })
 
-  return {
-    get scene () { return _scene }
-  }
+  return { init, stop, isReady }
 }
