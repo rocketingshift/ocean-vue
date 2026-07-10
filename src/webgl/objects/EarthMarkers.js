@@ -2,7 +2,6 @@
 import * as THREE from 'three'
 import { EARTH_MARKERS } from '@/data/chapters.js'
 
-// Safe converters — handles Array, Vue reactive Proxy, {x,y,z} object, THREE.Vector3, undefined
 function toArr3(v) {
   if (!v) return [0, 0, 0]
   if (Array.isArray(v)) return [Number(v[0] ?? 0), Number(v[1] ?? 0), Number(v[2] ?? 0)]
@@ -16,12 +15,11 @@ function toArr4(v) {
 }
 
 export class EarthMarkers {
-  constructor(scene) {
-    this.scene = scene
+  constructor() {
+    // ← KHÔNG nhận scene — Scene.js tự add group vào scene
     this.group = new THREE.Group()
     this.items = []
     this._build()
-    scene.add(this.group)
   }
 
   _build() {
@@ -69,7 +67,6 @@ export class EarthMarkers {
       mesh.geometry.dispose()
       mesh.material.dispose()
     })
-    this.scene.remove(this.group)
     this.items = []
   }
 }
