@@ -1,0 +1,99 @@
+@import './variables.css';
+
+/* ── Reset ─────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 10px;           /* 1rem = 10px — dễ scale */
+  scroll-behavior: auto;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-white);
+  font-family: var(--font-primary);
+  overflow: hidden;          /* scroll do custom scroller xử lý */
+  overscroll-behavior: none;
+  width: 100%;
+  height: 100%;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Canvas ─────────────────────────────────────────────── */
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ── Utilities ──────────────────────────────────────────── */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.will-change-transform { will-change: transform; }
+.will-change-opacity   { will-change: opacity; }
+
+/* ── Visibility states ──────────────────────────────────── */
+.invisible {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* ── Dashed border animation helper ────────────────────── */
+.dashed-border-h {
+  border-bottom: 1px solid transparent;
+  border-image: repeating-linear-gradient(
+    90deg,
+    var(--color-gray) 0,
+    var(--color-gray) 2px,
+    transparent 0,
+    transparent 6px
+  ) 1;
+}
+
+/* ── Clip-path reveal animation ────────────────────────── */
+.clip-reveal {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path var(--transition-slow);
+}
+.clip-reveal.--visible {
+  clip-path: inset(0 0 0 0);
+}
+
+/* ── Font face (thêm font thực tế ở đây) ───────────────── */
+/*
+@font-face {
+  font-family: 'YourFont';
+  src: url('/static/fonts/YourFont.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+*/
