@@ -1,6 +1,6 @@
 <template>
   <div class="layout-default">
-    <AppHeader />
+    <Header :isMuted="isMuted" @toggleAudio="toggleMute" />
     <Preloader />
     <Introduction />
     <slot />
@@ -8,18 +8,22 @@
 </template>
 
 <script setup>
-import AppHeader from '@/components/ui/AppHeader.vue'
-import Preloader from '@/components/sections/Preloader.vue'
+import Header       from '@/components/common/Header.vue'
+import Preloader    from '@/components/sections/Preloader.vue'
 import Introduction from '@/components/sections/Introduction.vue'
+import { useAudio } from '@/composables/useAudio'
+
+// useAudio dùng module-level singleton _audio — share được giữa các components
+const { isMuted, toggleMute } = useAudio()
 </script>
 
-<!-- ⚠️ NO lang="scss" — plain CSS only to avoid sass-embedded dependency -->
+<!-- NO lang="scss" -->
 <style scoped>
 .layout-default {
   position: relative;
   width: 100%;
   min-height: 100vh;
-  background: #00000f;
+  background: #000d15;
   color: #ffffff;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow-x: hidden;
