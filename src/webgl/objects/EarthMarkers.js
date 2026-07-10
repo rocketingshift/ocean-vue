@@ -1,65 +1,83 @@
+// src/webgl/objects/EarthMarkers.js
 import * as THREE from 'three'
-import { EARTH_MARKERS } from '@/data/chapters'
+import { EARTH_MARKERS } from '@/data/chapters.js'
 
+// ── Safe converters ────────────────────────────────────────────
+// Handles: plain Array, reactive Proxy(Array), {x,y,z} object, THREE.Vector3
+function toArr3 (v) {
+  if (!v) return [0, 0, 0]
+  if (Array.isArray(v)) return [Number(v[0] ?? 0), Number(v[1] ?? 0), Number(v[2] ?? 0)]
+  return [Number(v.x ?? 0), Number(v.y ?? 0), Number(v.z ?? 0)]
+}
+
+function toArr4 (v) {
+  if (!v) return [0, 0, 0, 1]
+  if (Array.isArray(v)) return [Number(v[0] ?? 0), Number(v[1] ?? 0), Number(v[2] ?? 0), Number(v[3] ?? 1)]
+  return [Number(v.x ?? 0), Number(v.y ?? 0), Number(v.z ?? 0), Number(v.w ?? 1)]
+}
+
+// ── EarthMarkers ───────────────────────────────────────────────
 export class EarthMarkers {
-  constructor() {
+  constructor (scene) {
+    this.scene   = scene
     this.group   = new THREE.Group()
-    this._meshes = []
+    this.items   = []   // { mesh, data }
     this._build()
+    scene.add(this.group)
   }
 
-  _build() {
-    EARTH_MARKERS.forEach(({ id, pos, orient }) => {
-      // Marker dot
-      const geo = new THREE.SphereGeometry(0.012, 16, 16)
+  _build () {
+    const markerData = Array.isArray(EARTH_MARKERS) ? EARTH_MARKERS : []
+
+    markerData.forEach((data) => {
+      const pos    = toArr3(data.pos)
+      const orient = toArr4(data.orient)
+
+      // Visual: small glowing sphere
+      const geo = new THREE.SphereGeometry(0.022, 12, 12)
       const mat = new THREE.MeshBasicMaterial({
-        color:       0x90e0ef,
-        transparent: true,
-        opacity:     0,
+        color       : 0x00e5ff,
+        transparent : true,
+        opacity     : 0,
+        depthTest   : false,
       })
       const mesh = new THREE.Mesh(geo, mat)
 
-      // Position on globe surface
       mesh.position.set(...pos)
-      mesh.position.normalize().multiplyScalar(1.01)
-
-      // Apply quaternion orientation
-      mesh.quaternion.set(orient[0], orient[1], orient[2], orient[3])
-
-      // Glow ring
-      const ringGeo = new THREE.RingGeometry(0.018, 0.025, 32)
-      const ringMat = new THREE.MeshBasicMaterial({
-        color:       0x90e0ef,
-        transparent: true,
-        opacity:     0,
-        side:        THREE.DoubleSide,
-      })
-      const ring = new THREE.Mesh(ringGeo, ringMat)
-      mesh.add(ring)
-
-      // Billboard: ring faces camera (done in update)
-      ring.userData.isRing = true
+      mesh.quaternion.set(...orient)
+      mesh.renderOrder = 999
+      mesh.userData    = { id: data.id ?? '', label: data.label ?? '' }
 
       this.group.add(mesh)
-      this._meshes.push({ mesh, mat, ringMat, id })
+      this.items.push({ mesh, data })
     })
   }
 
-  update(scrollProgress) {
-    // Markers fade in/out based on scroll proximity to their chapter
-    const activeIdx = Math.floor(scrollProgress * (EARTH_MARKERS.length - 1))
+  /** Called each frame with normalised scroll progress 0–1 */
+  update (progress) {
+    this.items.forEach(({ mesh, data }) => {
+      const chapterProgress = data.chapterProgress ?? data.chapter ?? -1
+      if (chapterProgress < 0) return
 
-    this._meshes.forEach(({ mesh, mat, ringMat, id }) => {
-      const isActive = id === activeIdx
-      const dist     = Math.abs(id - scrollProgress * (EARTH_MARKERS.length - 1))
-      const opacity  = Math.max(0, 1 - dist * 1.2)
+      const dist    = Math.abs(progress - chapterProgress)
+      const visible = dist < 0.06
+      const opacity = visible ? Math.max(0, 1 - dist / 0.06) : 0
 
-      mat.opacity     = opacity * 0.9
-      ringMat.opacity = isActive ? 0.6 : opacity * 0.3
-
-      // Pulse scale on active marker
-      const pulse = isActive ? 1 + Math.sin(Date.now() * 0.004) * 0.15 : 1
-      mesh.children[0]?.scale.setScalar(pulse)
+      mesh.material.opacity  = opacity
+      mesh.material.needsUpdate = true
     })
+  }
+
+  setVisible (visible) {
+    this.group.visible = visible
+  }
+
+  dispose () {
+    this.items.forEach(({ mesh }) => {
+      mesh.geometry.dispose()
+      mesh.material.dispose()
+    })
+    this.scene.remove(this.group)
+    this.items = []
   }
 }
