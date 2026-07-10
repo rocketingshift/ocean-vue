@@ -1,23 +1,21 @@
 <template>
-  <!-- Custom scroll container: 2500vh long -->
+  <!--
+    Custom scroll container — height: 100svh, overflow-y: auto
+    Sticky pattern: page-index TRƯỚC, scroller-length SAU
+    → page-index hiển thị ở scroll=0, sticky giữ nó khi scroll xuống
+  -->
   <div
     ref="scrollerRef"
     class="scroller no-scrollbar"
     :class="{ 'scroller--debug': appStore.isDebug }"
   >
-    <!-- Scroll length spacer -->
-    <div
-      class="scroller-length"
-      :class="{ debug: appStore.isDebug }"
-    />
-
-    <!-- Sticky canvas zone -->
+    <!-- ① Sticky canvas zone — PHẢI đứng TRƯỚC để thấy ở scroll:0 -->
     <div class="page-index">
 
-      <!-- WebGL Canvas (always visible) -->
+      <!-- WebGL Canvas (always rendered, always behind content) -->
       <WebGLCanvas />
 
-      <!-- Chapter content (overlaid on canvas) -->
+      <!-- Chapter content (hiện sau khi intro kết thúc) -->
       <div
         class="chapter-sections"
         :class="{ hide: !appStore.isIntroduced }"
@@ -33,6 +31,13 @@
       </div>
 
     </div>
+
+    <!-- ② Scroll spacer — SAU sticky zone, tạo 2500vh scroll space -->
+    <div
+      class="scroller-length"
+      :class="{ debug: appStore.isDebug }"
+    />
+
   </div>
 </template>
 
@@ -51,6 +56,7 @@ useScroller(scrollerRef)
 </script>
 
 <style scoped>
+/* ── Scroll container ─────────────────────────────────── */
 .scroller {
   height: 100svh;
   height: calc(var(--svh, 1svh) * 100);
@@ -59,15 +65,7 @@ useScroller(scrollerRef)
   overscroll-behavior: none;
 }
 
-.scroller-length {
-  height: 2500vh;
-  height: calc(var(--vh, 1vh) * 2500);
-  pointer-events: none;
-}
-.scroller-length.debug {
-  height: 0;
-}
-
+/* ── Sticky viewport — dính khi scroll ────────────────── */
 .page-index {
   position: sticky;
   top: 0;
@@ -77,6 +75,15 @@ useScroller(scrollerRef)
   overflow: hidden;
 }
 
+/* ── Scroll spacer — tạo không gian scroll 2500vh ─────── */
+.scroller-length {
+  height: 2500vh;
+  height: calc(var(--vh, 1vh) * 2500);
+  pointer-events: none;
+}
+.scroller-length.debug { height: 0; }
+
+/* ── Chapter overlay ──────────────────────────────────── */
 .chapter-sections {
   position: absolute;
   inset: 0;
@@ -88,6 +95,7 @@ useScroller(scrollerRef)
   visibility: hidden;
 }
 
+/* ── Mobile swipe hint ────────────────────────────────── */
 .swipper__container {
   height: 100svh;
   height: calc(var(--svh, 1svh) * 100);
