@@ -1,235 +1,146 @@
-// src/webgl/Scene.js
 import * as THREE from 'three'
 import { GLTFLoader }  from 'three/addons/loaders/GLTFLoader.js'
-import { KTX2Loader }  from 'three/addons/loaders/KTX2Loader.js'
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'
-
 import { OceanRenderer } from './Renderer.js'
 import { OceanCamera }   from './Camera.js'
-import { Earth }         from './objects/Earth.js'
-import { Water }         from './objects/Water.js'
-import { EarthMarkers }  from './objects/EarthMarkers.js'
 
-import { ASSET_BASE, PATHS, TOTAL_ASSETS } from '@/config/assets.js'
-import { useWebGLStore }  from '@/stores/useWebGLStore.js'
-import { useScrollStore } from '@/stores/useScrollStore.js'
-
-// ─── Singleton ────────────────────────────────────────────────
-let _instance = null
+// ── Assets (inline, không qua assets.js để tránh import chain) ──────────────
+const ASSET_BASE = 'https://raw.githubusercontent.com/rocketingshift/ocean-destop/main/2025.oceanx.org/2025.oceanx.org'
+const DRACO_PATH = 'https://www.gstatic.com/draco/versioned/decoders/1.5.6/'
 
 export class OceanScene {
-  constructor (canvas) {
-    if (_instance) return _instance
-    _instance = this
-
-    this.canvas = canvas
-
-    // Pinia stores
-    this.webglStore  = useWebGLStore()
-    this.scrollStore = useScrollStore()
-
-    // Three.js core
+  constructor() {
+    // ✅ this.camCtrl = OceanCamera (wrapper)
+    // ✅ this.camCtrl.camera = THREE.PerspectiveCamera (chỉ để render)
     this.scene    = new THREE.Scene()
-    this.renderer = new OceanRenderer(canvas)
+    this.renderer = new OceanRenderer()
+    this.camCtrl  = new OceanCamera()
 
-    // camCtrl = OceanCamera instance  (has .update(p), .camera, .resize())
-    // camCtrl.camera = THREE.PerspectiveCamera (has NO .update())
-    this.camCtrl = new OceanCamera()
+    this._earth      = null
+    this._astronaut  = null
+    this._loadedCount = 0
+    this._totalModels = 2
+    this._isReady     = false
 
-    this._objects = {}
-    this._loaded  = 0
-    this._clock   = new THREE.Clock()
+    this._initBackground()
+    this._initLights()
+    this._initModels()
 
-    this._init()
+    this._onResize = this._handleResize.bind(this)
+    window.addEventListener('resize', this._onResize)
   }
 
-  static getInstance (canvas) {
-    if (_instance) return _instance
-    return new OceanScene(canvas)
+  // ── Scene Setup ─────────────────────────────────────────────────────────────
+
+  _initBackground() {
+    this.scene.background = new THREE.Color(0x00000f)
+    this.scene.fog = new THREE.FogExp2(0x00000f, 0.015)
   }
 
-  static destroy () { _instance = null }
+  _initLights() {
+    const ambient = new THREE.AmbientLight(0x304060, 2)
+    this.scene.add(ambient)
 
-  // ─────────────────────────────────────────────────────────────
-  // Private
-  // ─────────────────────────────────────────────────────────────
-
-  async _init () {
-    this._setupLights()
-    await this._loadAssets()
-    this._buildScene()
-    // Reset clock AFTER load so first delta is small
-    this._clock.start()
-    this.webglStore.setReady(true)
-  }
-
-  _setupLights () {
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.4))
-
-    const sun = new THREE.DirectionalLight(0xfff5e0, 2.5)
-    sun.position.set(5, 3, 5)
+    const sun = new THREE.DirectionalLight(0xffffff, 4)
+    sun.position.set(5, 5, 5)
     this.scene.add(sun)
 
-    const rim = new THREE.DirectionalLight(0x4488ff, 0.8)
-    rim.position.set(-5, -2, -3)
+    const rim = new THREE.DirectionalLight(0x2244ff, 2)
+    rim.position.set(-4, 1, -4)
     this.scene.add(rim)
-
-    const fill = new THREE.DirectionalLight(0xffffff, 0.3)
-    fill.position.set(0, -5, 2)
-    this.scene.add(fill)
   }
 
-  async _loadAssets () {
-    const r = this.renderer.renderer
-
-    // ── KTX2 ────────────────────────────────────────────────
-    const ktx2 = new KTX2Loader()
-    try {
-      // basis folder is alongside the model files
-      ktx2.setTranscoderPath(`${ASSET_BASE}/basis/`)
-      ktx2.detectSupport(r)
-    } catch (e) { console.warn('KTX2 init:', e.message) }
-
-    // ── DRACO ────────────────────────────────────────────────
+  _initModels() {
     const draco = new DRACOLoader()
-    draco.setDecoderPath(
-      'https://www.gstatic.com/draco/versioned/decoders/1.5.6/'
-    )
+    draco.setDecoderPath(DRACO_PATH)
 
-    // ── GLTF ─────────────────────────────────────────────────
-    const gltf = new GLTFLoader()
-    gltf.setKTX2Loader(ktx2)
-    gltf.setDRACOLoader(draco)
+    const loader = new GLTFLoader()
+    loader.setDRACOLoader(draco)
 
-    const tick = () => {
-      this._loaded = Math.min(this._loaded + 1, TOTAL_ASSETS)
-      this.webglStore.setProgress(
-        Math.round((this._loaded / TOTAL_ASSETS) * 100)
-      )
-    }
-
-    // Earth — required
-    try {
-      const eg = await this._gltfLoad(
-        gltf, `${ASSET_BASE}/${PATHS.earthModel}`, tick
-      )
-      this._objects.earth = new Earth(eg, ktx2, r)
-    } catch (e) {
-      console.error('Earth load failed:', e)
-      tick()
-    }
-
-    // Optional extra models (only loads if key exists in PATHS)
-    const extras = ['astronautModel', 'fishModel', 'coralModel', 'shipModel']
-    for (const key of extras) {
-      if (!PATHS[key]) { continue }
-      try {
-        const g = await this._gltfLoad(
-          gltf, `${ASSET_BASE}/${PATHS[key]}`, tick
-        )
-        const obj = g.scene
-        obj.scale.setScalar(0.12)
-        obj.position.set(-0.9, 0.1, 0.4)
-        this._objects[key] = obj
-      } catch (e) {
-        console.warn(`${key} skipped:`, e.message)
-        tick()
+    // Earth
+    loader.load(
+      `${ASSET_BASE}/models/earth.glb`,
+      (gltf) => {
+        this._earth = gltf.scene
+        this._earth.scale.setScalar(1.8)
+        this._earth.position.set(0, 0, 0)
+        this.scene.add(this._earth)
+        this._onModelLoaded('earth')
+      },
+      undefined,
+      (err) => {
+        console.warn('[Scene] earth.glb load error:', err.message)
+        this._onModelLoaded('earth') // đừng block isReady
       }
-    }
+    )
 
-    // Water plane
-    try {
-      this._objects.water = new Water()
-      tick()
-    } catch (e) {
-      console.warn('Water skipped:', e.message)
-      tick()
-    }
-
-    // Earth markers
-    try {
-      this._objects.markers = new EarthMarkers()
-      tick()
-    } catch (e) {
-      console.warn('Markers skipped:', e.message)
-      tick()
-    }
-
-    // Pad to 100 %
-    while (this._loaded < TOTAL_ASSETS) tick()
-  }
-
-  _gltfLoad (loader, url, onProgress) {
-    return new Promise((resolve, reject) =>
-      loader.load(url, resolve, onProgress, reject)
+    // Astronaut
+    loader.load(
+      `${ASSET_BASE}/models/astronaut.glb`,
+      (gltf) => {
+        this._astronaut = gltf.scene
+        this._astronaut.scale.setScalar(0.25)
+        this._astronaut.position.set(2.5, 0.5, 0.5)
+        this.scene.add(this._astronaut)
+        this._onModelLoaded('astronaut')
+      },
+      undefined,
+      (err) => {
+        console.warn('[Scene] astronaut.glb load error:', err.message)
+        this._onModelLoaded('astronaut')
+      }
     )
   }
 
-  _buildScene () {
-    const o = this._objects
-
-    if (o.earth?.group)      this.scene.add(o.earth.group)
-    if (o.astronautModel)    this.scene.add(o.astronautModel)
-    if (o.fishModel)         this.scene.add(o.fishModel)
-    if (o.coralModel)        this.scene.add(o.coralModel)
-    if (o.shipModel)         this.scene.add(o.shipModel)
-    if (o.water?.mesh)       this.scene.add(o.water.mesh)
-    if (o.markers?.group)    this.scene.add(o.markers.group)
-
-    this.scene.background = new THREE.Color(0x000a1a)
-    this.scene.fog = new THREE.FogExp2(0x000a1a, 0.06)
+  _onModelLoaded(name) {
+    this._loadedCount++
+    console.log(`[Scene] model loaded: ${name} (${this._loadedCount}/${this._totalModels})`)
+    if (this._loadedCount >= this._totalModels) {
+      this._isReady = true
+      console.log('[Scene] ✅ isReady = true')
+    }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // Public  (called by useWebGL.js every RAF frame)
-  // ─────────────────────────────────────────────────────────────
+  // ── Public API ───────────────────────────────────────────────────────────────
+
+  get isReady() {
+    return this._isReady
+  }
+
+  /** Bind renderer to an existing <canvas> element */
+  mount(canvas) {
+    this.renderer.mount(canvas)
+  }
 
   /**
-   * @param {number} progress  scroll 0→1  (from scrollStore)
-   *
-   * CHAIN:
-   *   useWebGL → scene.update(p)
-   *           → this.camCtrl.update(p)   ← OceanCamera instance ✅
-   *           → render(scene, this.camCtrl.camera)  ← THREE.PerspectiveCamera ✅
-   *
-   * NEVER call this.camCtrl.camera.update() — PerspectiveCamera has no .update()
+   * Main update — called every RAF frame.
+   * @param {number} progress - scroll progress 0..1
    */
-  update (progress) {
-    const delta   = this._clock.getDelta()
-    const elapsed = this._clock.getElapsedTime()
-    const o       = this._objects
-
-    // ── 1. Camera (OceanCamera.update — NOT THREE.Camera) ────
+  update(progress) {
+    // ✅ 1. Update camera via wrapper — OceanCamera.update(progress)
+    //    KHÔNG BAO GIỜ gọi this.camCtrl.camera.update() — THREE.PerspectiveCamera không có method đó
     this.camCtrl.update(progress)
 
-    // ── 2. Animate Earth ─────────────────────────────────────
-    if (o.earth?.group) {
-      o.earth.group.rotation.y += delta * 0.025
+    // 2. Animate Earth rotation
+    if (this._earth) {
+      this._earth.rotation.y += 0.0008
     }
 
-    // ── 3. Water shader time ─────────────────────────────────
-    const wUni = o.water?.mesh?.material?.uniforms
-    if (wUni?.uTime) {
-      wUni.uTime.value = elapsed
-    }
-
-    // ── 4. Markers (guard: method may not exist) ─────────────
-    if (typeof o.markers?.updateFromScroll === 'function') {
-      o.markers.updateFromScroll(progress)
-    }
-
-    // ── 5. Render ─────────────────────────────────────────────
-    // this.camCtrl.camera = THREE.PerspectiveCamera ✅
-    this.renderer.renderer.render(this.scene, this.camCtrl.camera)
+    // 3. Render — dùng this.camCtrl.camera (THREE.PerspectiveCamera)
+    this.renderer.render(this.scene, this.camCtrl.camera)
   }
 
-  resize () {
+  resize() {
     this.renderer.resize()
     this.camCtrl.resize()
   }
 
-  dispose () {
-    this.renderer.renderer.dispose()
-    _instance = null
+  _handleResize() {
+    this.resize()
+  }
+
+  destroy() {
+    window.removeEventListener('resize', this._onResize)
+    this.renderer.destroy()
   }
 }
