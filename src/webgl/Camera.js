@@ -1,87 +1,62 @@
-// src/webgl/Camera.js
 import * as THREE from 'three'
 
-const FOV  = 45
-const NEAR = 0.01
-const FAR  = 100
-
-// Scroll-driven keyframes  progress 0→1
-const CAM_KEYFRAMES = [
-  { t: 0.00, pos: [0,    0.3, 4.5], target: [0, 0,   0] },
-  { t: 0.12, pos: [0,    0.2, 4.0], target: [0, 0,   0] },
-  { t: 0.25, pos: [1.5,  0.5, 3.5], target: [0, 0,   0] },
-  { t: 0.38, pos: [2.0,  0.8, 3.0], target: [0, 0,   0] },
-  { t: 0.50, pos: [0,    1.0, 3.5], target: [0, 0.2, 0] },
-  { t: 0.62, pos: [-2.0, 0.5, 3.0], target: [0, 0,   0] },
-  { t: 0.75, pos: [-1.5, 0.3, 3.8], target: [0, 0,   0] },
-  { t: 0.88, pos: [0,    0.5, 4.2], target: [0, 0,   0] },
-  { t: 1.00, pos: [0,    0.3, 4.5], target: [0, 0,   0] },
-]
-
 export class OceanCamera {
-  constructor () {
+  constructor() {
     this.camera = new THREE.PerspectiveCamera(
-      FOV,
+      45,
       window.innerWidth / window.innerHeight,
-      NEAR,
-      FAR
+      0.1,
+      10000
     )
-    this.camera.position.set(0, 0.3, 4.5)
+    this.camera.position.set(0, 2, 8)
     this.camera.lookAt(0, 0, 0)
 
-    // Internal lerp state
-    this._destPos    = new THREE.Vector3(0, 0.3, 4.5)
-    this._destLookAt = new THREE.Vector3(0, 0,   0)
-    this._curPos     = new THREE.Vector3(0, 0.3, 4.5)
-    this._curLookAt  = new THREE.Vector3(0, 0,   0)
+    // Scroll waypoints: 7 điểm tương ứng 7 chapters
+    this._waypoints = [
+      { pos: new THREE.Vector3(0,  2,  8),  look: new THREE.Vector3(0, 0, 0) }, // 0%
+      { pos: new THREE.Vector3(3,  1,  5),  look: new THREE.Vector3(0, 0, 0) }, // ~14%
+      { pos: new THREE.Vector3(-3, 0,  4),  look: new THREE.Vector3(0, 0, 0) }, // ~28%
+      { pos: new THREE.Vector3(0,  3,  4),  look: new THREE.Vector3(0, 0, 0) }, // ~42%
+      { pos: new THREE.Vector3(2, -1,  4),  look: new THREE.Vector3(0, 0, 0) }, // ~57%
+      { pos: new THREE.Vector3(-2, 1,  4),  look: new THREE.Vector3(0, 0, 0) }, // ~71%
+      { pos: new THREE.Vector3(0,  0, 10),  look: new THREE.Vector3(0, 0, 0) }, // 100%
+    ]
+
+    this._targetPos  = new THREE.Vector3()
+    this._targetLook = new THREE.Vector3()
+    this._smooth = 0.04 // lerp factor per frame
   }
 
   /**
-   * Called every RAF frame by Scene.update()
-   * @param {number} progress  0→1 scroll progress
+   * Scroll-driven camera update.
+   * ✅ Tên method PHẢI là update() — Scene.js gọi this.camCtrl.update(progress)
+   * @param {number} progress - 0..1
    */
-  update (progress) {
-    const kf = CAM_KEYFRAMES
-    let from = kf[0]
-    let to   = kf[kf.length - 1]
+  update(progress) {
+    const n      = this._waypoints.length - 1
+    const clamped = Math.max(0, Math.min(1, progress))
+    const scaled  = clamped * n
+    const from    = Math.min(Math.floor(scaled), n - 1)
+    const to      = from + 1
+    const t       = scaled - from
 
-    for (let i = 0; i < kf.length - 1; i++) {
-      if (progress >= kf[i].t && progress <= kf[i + 1].t) {
-        from = kf[i]
-        to   = kf[i + 1]
-        break
-      }
-    }
-
-    const range = to.t - from.t
-    const local = range === 0 ? 0 : (progress - from.t) / range
-    // easeInOutQuad
-    const t = local < 0.5
-      ? 2 * local * local
-      : -1 + (4 - 2 * local) * local
-
-    const lerp = (a, b, t) => a + (b - a) * t
-
-    this._destPos.set(
-      lerp(from.pos[0], to.pos[0], t),
-      lerp(from.pos[1], to.pos[1], t),
-      lerp(from.pos[2], to.pos[2], t)
+    this._targetPos.lerpVectors(
+      this._waypoints[from].pos,
+      this._waypoints[to].pos,
+      t
     )
-    this._destLookAt.set(
-      lerp(from.target[0], to.target[0], t),
-      lerp(from.target[1], to.target[1], t),
-      lerp(from.target[2], to.target[2], t)
+    this._targetLook.lerpVectors(
+      this._waypoints[from].look,
+      this._waypoints[to].look,
+      t
     )
 
-    // Smooth approach (5% per frame ≈ ~0.3s lag at 60fps)
-    this._curPos.lerp(this._destPos, 0.05)
-    this._curLookAt.lerp(this._destLookAt, 0.05)
-
-    this.camera.position.copy(this._curPos)
-    this.camera.lookAt(this._curLookAt)
+    // Smooth interpolation
+    this.camera.position.lerp(this._targetPos, this._smooth)
+    this.camera.lookAt(this._targetLook)
   }
 
-  resize () {
+  resize() {
     this.camera.aspect = window.innerWidth / window.innerHeight
     this.camera.updateProjectionMatrix()
   }
