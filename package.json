@@ -1,0 +1,24 @@
+{
+  "name": "ocean-vue",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.4.31",
+    "vue-router": "^4.3.3",
+    "pinia": "^2.1.7",
+    "three": "^0.169.0",
+    "gsap": "^3.12.5",
+    "tweakpane": "^4.0.4",
+    "@tweakpane/core": "^2.0.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.1.2",
+    "vite": "^5.4.0"
+  }
+}
