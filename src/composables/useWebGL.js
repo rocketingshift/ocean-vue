@@ -1,78 +1,63 @@
-import { onMounted, onUnmounted } from 'vue'
-import { useWebGLStore }  from '@/stores/useWebGLStore'
-import { useScrollStore } from '@/stores/useScrollStore'
-import { useAppStore }    from '@/stores/useAppStore'
-import { OceanScene }     from '@/webgl/Scene'
-import { TOTAL_ASSETS }   from '@/config/assets'
+// src/composables/useWebGL.js
+import { onMounted, onBeforeUnmount } from 'vue'
+import { OceanScene }     from '@/webgl/Scene.js'
+import { useScrollStore } from '@/stores/useScrollStore.js'
 
-let _scene = null  // singleton WebGL scene
+// Module-level singletons (survive component re-renders)
+let _scene = null
+let _rafId = null
 
-export function useWebGL(canvasRef) {
-  const webglStore  = useWebGLStore()
+export function useWebGL (canvasRef) {
   const scrollStore = useScrollStore()
-  const appStore    = useAppStore()
-  let   _raf        = null
 
-  /* ─── Init ─────────────────────────────────────────────── */
-  async function init() {
-    if (!canvasRef.value) return
-    webglStore.setTotalAssets(TOTAL_ASSETS)
+  // ── RAF Loop ───────────────────────────────────────────────
+  function loop () {
+    // scrollStore.scrollProgress is a Pinia getter → plain number 0→1
+    const progress = scrollStore.scrollProgress ?? 0
 
-    try {
-      _scene = new OceanScene(canvasRef.value, {
-        debug:      appStore.isDebug,
-        onProgress: () => webglStore.incrementLoaded(1),
-        onError:    (e) => webglStore.addError(e),
-      })
-
-      await _scene.init()
-
-      webglStore.setScene(_scene.scene)
-      webglStore.setCamera(_scene.camera.instance)
-      webglStore.setRenderer(_scene.renderer.instance)
-      webglStore.setReady(true)
-      appStore.setLoaded(true)
-
-      _startLoop()
-    } catch (e) {
-      webglStore.addError(e)
+    if (_scene) {
+      try {
+        _scene.update(progress)
+      } catch (err) {
+        // Log once, don't let errors stop the loop
+        console.warn('[WebGL loop]', err.message)
+      }
     }
+
+    _rafId = requestAnimationFrame(loop)
   }
 
-  /* ─── RAF loop ─────────────────────────────────────────── */
-  function _startLoop() {
-    webglStore.setRendering(true)
-    const tick = () => {
-      _raf = requestAnimationFrame(tick)
-      _scene?.update(scrollStore.scrollProgress)
-    }
-    _raf = requestAnimationFrame(tick)
+  function onResize () {
+    if (_scene) _scene.resize()
   }
 
-  function _stopLoop() {
-    if (_raf) cancelAnimationFrame(_raf)
-    _raf = null
-    webglStore.setRendering(false)
-  }
-
-  /* ─── Resize ───────────────────────────────────────────── */
-  function _onResize() {
-    _scene?.resize(window.innerWidth, window.innerHeight)
-  }
-
-  /* ─── Lifecycle ────────────────────────────────────────── */
+  // ── Lifecycle ──────────────────────────────────────────────
   onMounted(() => {
-    init()
-    window.addEventListener('resize', _onResize)
+    if (!canvasRef.value) {
+      console.error('[useWebGL] canvas ref is null')
+      return
+    }
+
+    // Singleton: reuse if already created (hot reload / navigation)
+    _scene = OceanScene.getInstance(canvasRef.value)
+
+    window.addEventListener('resize', onResize, { passive: true })
+
+    // Start RAF (cancel any previous loop first)
+    if (_rafId) cancelAnimationFrame(_rafId)
+    _rafId = requestAnimationFrame(loop)
   })
 
-  onUnmounted(() => {
-    _stopLoop()
-    _scene?.destroy()
-    _scene = null
-    webglStore.reset()
-    window.removeEventListener('resize', _onResize)
+  onBeforeUnmount(() => {
+    window.removeEventListener('resize', onResize)
+    // Cancel RAF but keep _scene alive (singleton)
+    if (_rafId) {
+      cancelAnimationFrame(_rafId)
+      _rafId = null
+    }
   })
 
-  return { webglStore }
+  return {
+    get scene () { return _scene }
+  }
 }
