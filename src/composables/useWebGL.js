@@ -12,13 +12,13 @@ export function useWebGL(canvasRef) {
   const scrollStore = useScrollStore()
   const isReady     = ref(false)
 
-  // ── Init ────────────────────────────────────────────────────────────────────
+  // ── Init ──────────────────────────────────────────────────────────────────
 
   async function init() {
     if (_isInitialized) return
     _isInitialized = true
 
-    // ✅ Extract actual DOM element — canvasRef là Vue Ref, cần .value
+    // ✅ DOM element — canvasRef là Vue Ref, cần .value
     const canvasEl = canvasRef?.value ?? canvasRef
     if (!canvasEl || !(canvasEl instanceof HTMLCanvasElement)) {
       console.error('[useWebGL] ❌ canvas không hợp lệ:', canvasEl)
@@ -28,20 +28,31 @@ export function useWebGL(canvasRef) {
 
     try {
       const { OceanScene } = await import('@/webgl/Scene.js')
-      _scene = new OceanScene()
 
-      // mount TRƯỚC khi start loop
+      // ✅ Khai báo tổng số assets TRƯỚC khi tạo scene
+      //    → Preloader sẽ hiện 0% → 50% → 100% thay vì mãi 0%
+      webglStore.setTotalAssets(2)
+
+      _scene = new OceanScene({
+        // ✅ Callback progress: mỗi model load xong → tăng store counter
+        onProgress: (loaded, total) => {
+          webglStore.incrementLoaded()
+          console.log(`[useWebGL] 📦 Progress: ${loaded}/${total}`)
+        },
+      })
+
       _scene.mount(canvasEl)
       _startLoop()
       _pollReady()
 
-      // Fallback: force ready sau 6 giây nếu models không load được
+      // Fallback: force ready sau 10s (earth.glb + clouds.glb ~800KB each)
+      // Đủ thời gian ngay cả khi mạng chậm ở VN
       setTimeout(() => {
         if (!isReady.value) {
-          console.warn('[useWebGL] ⏱ Timeout — forcing isReady')
+          console.warn('[useWebGL] ⏱ 10s Timeout — forcing isReady')
           _setReady()
         }
-      }, 6000)
+      }, 10000)
 
     } catch (err) {
       console.error('[useWebGL] ❌ Init lỗi:', err)
@@ -49,7 +60,7 @@ export function useWebGL(canvasRef) {
     }
   }
 
-  // ── Readiness polling ────────────────────────────────────────────────────────
+  // ── Readiness polling ──────────────────────────────────────────────────────
 
   function _pollReady() {
     const check = () => {
@@ -65,10 +76,10 @@ export function useWebGL(canvasRef) {
   function _setReady() {
     isReady.value = true
     webglStore.setReady(true)
-    console.log('[useWebGL] ✅ isReady = true')
+    console.log('[useWebGL] ✅ isReady = true → preloader will dismiss')
   }
 
-  // ── RAF loop ─────────────────────────────────────────────────────────────────
+  // ── RAF loop ───────────────────────────────────────────────────────────────
 
   function _startLoop() {
     if (_rafId) return
@@ -76,7 +87,6 @@ export function useWebGL(canvasRef) {
     const tick = () => {
       if (_scene) {
         try {
-          // scrollStore.scrollProgress là number (Pinia auto-unwrap refs)
           _scene.update(scrollStore.scrollProgress ?? 0)
         } catch (err) {
           console.warn('[useWebGL] tick lỗi (non-fatal):', err.message)
@@ -96,11 +106,11 @@ export function useWebGL(canvasRef) {
     }
   }
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────────
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
 
-  // ✅ AUTO-INIT khi canvas được mount vào DOM
-  // WebGLCanvas.vue chỉ gọi useWebGL(canvasRef) — không cần gọi init() thủ công
+  // ✅ AUTO-INIT khi canvas mount vào DOM
   onMounted(() => {
+    console.log('[useWebGL] onMounted — calling init()')
     init()
   })
 
@@ -111,7 +121,7 @@ export function useWebGL(canvasRef) {
       _scene = null
     }
     _isInitialized = false
-    console.log('[useWebGL] 🗑 cleanup done')
+    console.log('[useWebGL] 🧹 cleanup done')
   })
 
   return { stop, isReady }
